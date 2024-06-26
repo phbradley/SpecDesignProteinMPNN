@@ -20,7 +20,7 @@ def main(args):
     from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
     from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
 
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler() if (torch.cuda.is_available() and args.mixed_precision) else None
      
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
 
@@ -82,12 +82,19 @@ def main(args):
                         dropout=args.dropout, 
                         augment_eps=args.backbone_noise)
     model.to(device)
-
-
+        
+        
     if PATH:
-        checkpoint = torch.load(PATH)
-        total_step = checkpoint['step'] #write total_step from the checkpoint
-        epoch = checkpoint['epoch'] #write epoch from the checkpoint
+        checkpoint = torch.load(PATH, map_location=device)
+
+        # write total_step and epoch from checkpoint if available
+        if 'step' in checkpoint and 'epoch' in checkpoint:
+            total_step = checkpoint['step']
+            epoch = checkpoint['epoch']
+        else:
+            total_step = 0
+            epoch = 0
+        
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
         total_step = 0
@@ -96,7 +103,8 @@ def main(args):
     optimizer = get_std_opt(model.parameters(), args.hidden_dim, total_step)
 
 
-    if PATH:
+    # load optimizer state if available
+    if PATH and ('optimizer_state_dict' in checkpoint):
         optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 
