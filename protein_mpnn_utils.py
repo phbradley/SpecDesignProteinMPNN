@@ -62,19 +62,19 @@ def parse_PDB_biounits(x, atoms=['N','CA','C'], chain=None):
   states = len(alpha_1)
   alpha_3 = ['ALA','ARG','ASN','ASP','CYS','GLN','GLU','GLY','HIS','ILE',
              'LEU','LYS','MET','PHE','PRO','SER','THR','TRP','TYR','VAL','GAP']
-  
+
   aa_1_N = {a:n for n,a in enumerate(alpha_1)}
   aa_3_N = {a:n for n,a in enumerate(alpha_3)}
   aa_N_1 = {n:a for n,a in enumerate(alpha_1)}
   aa_1_3 = {a:b for a,b in zip(alpha_1,alpha_3)}
   aa_3_1 = {b:a for a,b in zip(alpha_1,alpha_3)}
-  
+
   def AA_to_N(x):
     # ["ARND"] -> [[0,1,2,3]]
     x = np.array(x);
     if x.ndim == 0: x = x[None]
     return [[aa_1_N.get(a, states-1) for a in y] for y in x]
-  
+
   def N_to_AA(x):
     # [[0,1,2,3]] -> ["ARND"]
     x = np.array(x);
@@ -97,22 +97,22 @@ def parse_PDB_biounits(x, atoms=['N','CA','C'], chain=None):
         resn = line[22:22+5].strip()
         x,y,z = [float(line[i:(i+8)]) for i in [30,38,46]]
 
-        if resn[-1].isalpha(): 
+        if resn[-1].isalpha():
             resa,resn = resn[-1],int(resn[:-1])-1
-        else: 
+        else:
             resa,resn = "",int(resn)-1
 #         resn = int(resn)
-        if resn < min_resn: 
+        if resn < min_resn:
             min_resn = resn
-        if resn > max_resn: 
+        if resn > max_resn:
             max_resn = resn
-        if resn not in xyz: 
+        if resn not in xyz:
             xyz[resn] = {}
-        if resa not in xyz[resn]: 
+        if resa not in xyz[resn]:
             xyz[resn][resa] = {}
-        if resn not in seq: 
+        if resn not in seq:
             seq[resn] = {}
-        if resa not in seq[resn]: 
+        if resa not in seq[resn]:
             seq[resn][resa] = resi
 
         if atom not in xyz[resn][resa]:
@@ -142,10 +142,10 @@ def parse_PDB(path_to_pdb, input_chain_list=None, ca_only=False):
     init_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G','H', 'I', 'J','K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T','U', 'V','W','X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g','h', 'i', 'j','k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't','u', 'v','w','x', 'y', 'z']
     extra_alphabet = [str(item) for item in list(np.arange(300))]
     chain_alphabet = init_alphabet + extra_alphabet
-     
+
     if input_chain_list:
-        chain_alphabet = input_chain_list  
- 
+        chain_alphabet = input_chain_list
+
 
     biounit_names = [path_to_pdb]
     for biounit in biounit_names:
@@ -220,8 +220,8 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
         else:
             masked_chains = [item[-1:] for item in list(b) if item[:10]=='seq_chain_']
             visible_chains = []
-        masked_chains.sort() #sort masked_chains 
-        visible_chains.sort() #sort visible_chains 
+        masked_chains.sort() #sort masked_chains
+        visible_chains.sort() #sort visible_chains
         all_chains = masked_chains + visible_chains
     for i, b in enumerate(batch):
         mask_dict = {}
@@ -294,7 +294,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
                     if len(x_chain.shape) == 2:
                         x_chain = x_chain[:,None,:]
                 else:
-                    x_chain = np.stack([chain_coords[c] for c in [f'N_chain_{letter}', f'CA_chain_{letter}', f'C_chain_{letter}', f'O_chain_{letter}']], 1) #[chain_lenght,4,3]               
+                    x_chain = np.stack([chain_coords[c] for c in [f'N_chain_{letter}', f'CA_chain_{letter}', f'C_chain_{letter}', f'O_chain_{letter}']], 1) #[chain_lenght,4,3]
                 x_chain_list.append(x_chain)
                 chain_mask_list.append(chain_mask)
                 chain_seq_list.append(chain_seq)
@@ -333,7 +333,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
                 else:
                     bias_by_res_list.append(np.zeros([chain_length, 21]))
 
-       
+
         letter_list_np = np.array(letter_list)
         tied_pos_list_of_lists = []
         tied_beta = np.ones(L_max)
@@ -356,7 +356,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
         tied_pos_list_of_lists_list.append(tied_pos_list_of_lists)
 
 
- 
+
         x = np.concatenate(x_chain_list,0) #[L, 4, 3]
         all_sequence = "".join(chain_seq_list)
         m = np.concatenate(chain_mask_list,0) #[L,], 1.0 for places that need to be predicted
@@ -476,7 +476,7 @@ class StructureDataset():
             start = time.time()
             for i, line in enumerate(lines):
                 entry = json.loads(line)
-                seq = entry['seq'] 
+                seq = entry['seq']
                 name = entry['name']
 
                 # Convert raw coords to np arrays
@@ -512,7 +512,7 @@ class StructureDataset():
 
     def __getitem__(self, idx):
         return self.data[idx]
-    
+
 
 class StructureDatasetPDB():
     def __init__(self, pdb_dict_list, verbose=True, truncate=None, max_length=100,
@@ -555,7 +555,7 @@ class StructureDatasetPDB():
         return self.data[idx]
 
 
-    
+
 class StructureLoader():
     def __init__(self, dataset, batch_size=100, shuffle=True,
         collate_fn=lambda x:x, drop_last=False):
@@ -588,9 +588,9 @@ class StructureLoader():
         for b_idx in self.clusters:
             batch = [self.dataset[i] for i in b_idx]
             yield batch
-            
-            
-            
+
+
+
 # The following gather functions
 def gather_edges(edges, neighbor_idx):
     # Features [B,N,N,C] at Neighbor indices [B,N,K] => Neighbor features [B,N,K,C]
@@ -706,7 +706,7 @@ class DecLayer(nn.Module):
         if mask_V is not None:
             mask_V = mask_V.unsqueeze(-1)
             h_V = mask_V * h_V
-        return h_V 
+        return h_V
 
 
 
@@ -744,7 +744,7 @@ class CA_ProteinFeatures(nn.Module):
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
-        self.augment_eps = augment_eps 
+        self.augment_eps = augment_eps
         self.num_rbf = num_rbf
         self.num_positional_embeddings = num_positional_embeddings
 
@@ -769,8 +769,8 @@ class CA_ProteinFeatures(nn.Module):
         diag = torch.diagonal(R, dim1=-2, dim2=-1)
         Rxx, Ryy, Rzz = diag.unbind(-1)
         magnitudes = 0.5 * torch.sqrt(torch.abs(1 + torch.stack([
-              Rxx - Ryy - Rzz, 
-            - Rxx + Ryy - Rzz, 
+              Rxx - Ryy - Rzz,
+            - Rxx + Ryy - Rzz,
             - Rxx - Ryy + Rzz
         ], -1)))
         _R = lambda i,j: R[:,:,:,i,j]
@@ -818,7 +818,7 @@ class CA_ProteinFeatures(nn.Module):
         O = F.pad(O, (0,0,1,2), 'constant', 0)
         O_neighbors = gather_nodes(O, E_idx)
         X_neighbors = gather_nodes(X, E_idx)
-        
+
         # Re-view as rotation matrices
         O = O.view(list(O.shape[:2]) + [3,3])
         O_neighbors = O_neighbors.view(list(O_neighbors.shape[:3]) + [3,3])
@@ -881,10 +881,10 @@ class CA_ProteinFeatures(nn.Module):
         Ca_2[:,:-1,:] = Ca[:,1:,:]
 
         V, O_features = self._orientations_coarse(Ca, E_idx)
-        
+
         RBF_all = []
         RBF_all.append(self._rbf(D_neighbors)) #Ca_1-Ca_1
-        RBF_all.append(self._get_rbf(Ca_0, Ca_0, E_idx)) 
+        RBF_all.append(self._get_rbf(Ca_0, Ca_0, E_idx))
         RBF_all.append(self._get_rbf(Ca_2, Ca_2, E_idx))
 
         RBF_all.append(self._get_rbf(Ca_0, Ca_1, E_idx))
@@ -907,12 +907,12 @@ class CA_ProteinFeatures(nn.Module):
         E_chains = gather_edges(d_chains[:,:,:,None], E_idx)[:,:,:,0]
         E_positional = self.embeddings(offset.long(), E_chains)
         E = torch.cat((E_positional, RBF_all, O_features), -1)
-        
+
 
         E = self.edge_embedding(E)
         E = self.norm_edges(E)
-        
-        return E, E_idx 
+
+        return E, E_idx
 
 
 
@@ -925,7 +925,7 @@ class ProteinFeatures(nn.Module):
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
-        self.augment_eps = augment_eps 
+        self.augment_eps = augment_eps
         self.num_rbf = num_rbf
         self.num_positional_embeddings = num_positional_embeddings
 
@@ -963,7 +963,7 @@ class ProteinFeatures(nn.Module):
     def forward(self, X, mask, residue_idx, chain_labels):
         if self.augment_eps > 0:
             X = X + self.augment_eps * torch.randn_like(X)
-        
+
         b = X[:,:,1,:] - X[:,:,0,:]
         c = X[:,:,2,:] - X[:,:,1,:]
         a = torch.cross(b, c, dim=-1)
@@ -972,7 +972,7 @@ class ProteinFeatures(nn.Module):
         N = X[:,:,0,:]
         C = X[:,:,2,:]
         O = X[:,:,3,:]
- 
+
         D_neighbors, E_idx = self._dist(Ca, mask)
 
         RBF_all = []
@@ -1012,7 +1012,7 @@ class ProteinFeatures(nn.Module):
         E = torch.cat((E_positional, RBF_all), -1)
         E = self.edge_embedding(E)
         E = self.norm_edges(E)
-        return E, E_idx 
+        return E, E_idx
 
 
 
@@ -1090,7 +1090,7 @@ class ProteinMPNN(nn.Module):
 
         h_EXV_encoder_fw = mask_fw * h_EXV_encoder
         for layer in self.decoder_layers:
-            # Masked positions attend to encoder information, unmasked see. 
+            # Masked positions attend to encoder information, unmasked see.
             h_ESV = cat_neighbors_nodes(h_V, h_ES, E_idx)
             h_ESV = mask_bw * h_ESV + h_EXV_encoder_fw
             h_V = layer(h_V, h_ESV, mask)
@@ -1133,7 +1133,7 @@ class ProteinMPNN(nn.Module):
         h_V_stack = [h_V] + [torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))]
         constant = torch.tensor(omit_AAs_np, device=device)
         constant_bias = torch.tensor(bias_AAs_np, device=device)
-        #chain_mask_combined = chain_mask*chain_M_pos 
+        #chain_mask_combined = chain_mask*chain_M_pos
         omit_AA_mask_flag = omit_AA_mask != None
 
 
@@ -1288,6 +1288,250 @@ class ProteinMPNN(nn.Module):
         output_dict = {"S": S, "probs": all_probs, "decoding_order": decoding_order}
         return output_dict
 
+    def make_mask_attend(self, decoding_order, E_idx):
+        # see notes at the end of this file for some intuition
+        mask_size = E_idx.shape[1]
+        permutation_matrix_reverse = torch.nn.functional.one_hot(decoding_order, num_classes=mask_size).float()
+        order_mask_backward = torch.einsum('ij, biq, bjp->bqp',
+                                           (1-torch.triu(torch.ones(mask_size,mask_size, device=E_idx.device))),
+                                           permutation_matrix_reverse,
+                                           permutation_matrix_reverse)
+
+        # order_mask_backward[b,i,j] is 0. if i is decoded before j and 1. if i is decoded after j (and 0. if i==j)
+        mask_attend = torch.gather(order_mask_backward, 2, E_idx).unsqueeze(-1)
+        return mask_attend
+
+
+    def decode_single_position(
+            self, t, design_mask, mask, S, E_idx, h_S, h_E, h_V_stack, h_EXV_encoder, mask_fw, mask_bw, temperature,
+    ):
+        ''' returns probs'''
+        N_nbrs, N_hidden = h_E.shape[-2:]
+        N_batch, N_res = S.shape[:2]
+
+        # Hidden layers
+        E_idx_t = torch.gather(E_idx, 1, t[:,None,None].repeat(1,1,N_nbrs))
+        h_E_t = torch.gather(h_E, 1, t[:,None,None,None].repeat(1,1,N_nbrs, N_hidden))
+        h_ES_t = cat_neighbors_nodes(h_S, h_E_t, E_idx_t)
+        h_EXV_encoder_fw_t = torch.gather(mask_fw * h_EXV_encoder, 1, t[:,None,None,None].repeat(1,1,N_nbrs, 3*N_hidden))
+        mask_bw_t = torch.gather(mask_bw, 1, t[:,None,None,None].repeat(1,1,N_nbrs,1))
+        mask_t = torch.gather(mask, 1, t[:,None]) #[B]
+        for l, layer in enumerate(self.decoder_layers):
+            # Updated relational features for future states
+            h_ESV_decoder_t = cat_neighbors_nodes(h_V_stack[l], h_ES_t, E_idx_t)
+            h_V_t = torch.gather(h_V_stack[l], 1, t[:,None,None].repeat(1,1,N_hidden))
+            h_ESV_t = mask_bw_t * h_ESV_decoder_t + h_EXV_encoder_fw_t
+            h_V_stack[l+1].scatter_(1, t[:,None,None].repeat(1,1,N_hidden), layer(h_V_t, h_ESV_t, mask_V=mask_t))
+
+        h_V_t = torch.gather(h_V_stack[-1], 1, t[:,None,None].repeat(1,1,N_hidden))[:,0]
+        logits = self.W_out(h_V_t) / temperature
+        probs = F.softmax(logits, dim=-1)
+        return probs
+
+
+
+    def decode_nodes(
+            self, start, stop, decoding_order,
+            mask, design_mask, temperature,
+            S_true, E_idx, h_E,
+            S, h_S, h_V_stack, all_probs, ## only these inputs are modified
+    ):
+        ''' This will decode at the positions  poslist= decoding_order[:,start:stop]
+
+        This will change S and h_S at design_mask==1 positions in poslist
+        it will fill in h_V_stack for positions in poslist
+        and it will fill in all_probs for positions in poslist
+
+        h_V_stack[0] should be h_V right out of the encoder
+
+        [start,stop) refers to decoding_order indices, not actual residue numbers
+        '''
+        print('decode_nodes:', start, stop, decoding_order[0,start:stop])
+        N_nbrs, N_hidden = h_E.shape[-2:]
+        N_batch, N_res = S.shape[:2]
+        assert 0 <= start < stop <= N_res
+
+        mask_attend = self.make_mask_attend(decoding_order, E_idx)
+        mask_1D = mask.view([N_batch, N_res, 1, 1])
+        mask_bw = mask_1D * mask_attend
+        mask_fw = mask_1D * (1. - mask_attend)
+
+        h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_S), h_E, E_idx)
+        h_EXV_encoder = cat_neighbors_nodes(h_V_stack[0], h_EX_encoder, E_idx)
+        assert  h_EX_encoder.shape == (N_batch, N_res, N_nbrs, 2*N_hidden) # sanity
+        assert h_EXV_encoder.shape == (N_batch, N_res, N_nbrs, 3*N_hidden) # check
+        assert mask_bw.shape == (N_batch, N_res, N_nbrs, 1)
+
+        for t_ in range(start, stop):
+            t = decoding_order[:,t_] #[B]
+            probs = self.decode_single_position(t, design_mask, mask, S, E_idx, h_S, h_E, h_V_stack, h_EXV_encoder, mask_fw, mask_bw, temperature)
+            S_t = torch.multinomial(probs, 1)
+            all_probs.scatter_(1, t[:,None,None].repeat(1,1,21), probs[:,None,:].float())
+
+            design_mask_t = torch.gather(design_mask, 1, t[:,None]) #[B]
+            S_true_t = torch.gather(S_true, 1, t[:,None])
+            S_t = (S_t*design_mask_t + S_true_t*(1.0-design_mask_t)).long()
+            temp1 = self.W_s(S_t)
+            h_S.scatter_(1, t[:,None,None].repeat(1,1,N_hidden), temp1)
+            S.scatter_(1, t[:,None], S_t)
+
+        return # changes are made in-place
+
+
+
+    def spec_sample(self, X, randn, S_true, chain_mask, chain_encoding_all, residue_idx, spec_mask, mask=None, temperature=1.0, spec_temperature=1.0, omit_AAs_np=None, bias_AAs_np=None, chain_M_pos=None, omit_AA_mask=None, pssm_coef=None, pssm_bias=None, pssm_multi=None, pssm_log_odds_flag=None, pssm_log_odds_mask=None, pssm_bias_flag=None, bias_by_res=None):
+        '''
+        The idea here is that as we sample sequence at the designable positions,
+        we recompute the peptide probabilities conditioned on the various possible
+        choices, and prefer designed amino acids that enhance the peptide
+        probabilities. Of course we also care about the scores for the designed
+        position, so we will need to have a weight that balances the network's
+        preference at the designable positions versus the indirect preferences at
+        the peptide positions.
+
+        spec_mask would be 1.0 for the peptide and 0.0 for everything else
+        (for the case where we are designing binding loops that we want to be
+        specific for the peptide)
+
+        I believe that chain_mask (after multiplying by chain_M_pos) will be 1.0
+        at designable positions and 0.0 at non-designable positions.
+
+        mask is 1.0 except at missing positions
+
+        '''
+        device = X.device
+        # Prepare node and edge embeddings -- this assumes that E.shape[-1] is same hidden dimension as for h_V and h_E
+        E, E_idx = self.features(X, mask, residue_idx, chain_encoding_all)
+        h_V = torch.zeros((E.shape[0], E.shape[1], E.shape[-1]), device=device)
+        h_E = self.W_e(E)
+
+        N_nbrs, N_hidden = E.shape[-2:] # like  48, 128
+        N_batch, N_res = X.shape[:2]    # like   1, 406
+        assert N_batch == 1 # for the time being, otherwise it gets confusing!
+        assert E_idx.shape == (N_batch, N_res, N_nbrs)
+        assert h_V.shape == (N_batch, N_res, N_hidden)
+        assert h_E.shape == (N_batch, N_res, N_nbrs, N_hidden)
+        assert N_hidden == self.hidden_dim
+
+        # Encoder is unmasked self-attention
+        mask_attend = gather_nodes(mask.unsqueeze(-1),  E_idx).squeeze(-1)
+        mask_attend = mask.unsqueeze(-1) * mask_attend
+        for layer in self.encoder_layers:
+            h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend)
+
+        # from now on, h_V and h_E do not change! they are the state right out of the encoder
+
+        # Decoder uses masked self-attention
+        chain_mask = chain_mask*chain_M_pos*mask #update chain_M to include missing regions
+
+        num_spec = int(np.round(spec_mask[0].sum().cpu()))
+        num_design = int(np.round(chain_mask[0].sum().cpu()))
+        num_fix = N_res - num_design - num_spec
+        print(f'N_res: {N_res} num_spec: {num_spec} num_design: {num_design} num_fix: {num_fix}')
+
+
+        # designable positions at the end; spec pos and fix pos mixed in at the beginning
+        decoding_order_design = torch.argsort(torch.abs(randn) + 1000*chain_mask)
+        mask_attend_design = self.make_mask_attend(decoding_order_design, E_idx)
+        mask_1D = mask.view([mask.size(0), mask.size(1), 1, 1])
+        mask_bw_design = mask_1D * mask_attend_design
+        mask_fw_design = mask_1D * (1. - mask_attend_design)
+
+        # in this decoding order, we put the peptide at the end also
+        # we want the designable loops to come before the peptide
+        # and we want the order of the loop residues to be the same as in decoding_order_design
+        decoding_order_spec = torch.argsort(torch.abs(randn) + 1000*chain_mask + 2000*spec_mask)
+
+        all_probs = torch.zeros((N_batch, N_res, 21), device=device, dtype=torch.float32)
+        all_probs_spec = torch.zeros((N_batch, N_res, 21), device=device, dtype=torch.float32)
+
+        h_S_spec = torch.zeros_like(h_V, device=device)
+        S_spec = torch.zeros((N_batch, N_res), dtype=torch.int64, device=device)
+        h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_V), h_E, E_idx)
+        h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
+
+        # show some shapes
+        # print(f'shapes: X: {X.shape}  S: {S.shape}  E_idx: {E_idx.shape}  E: {E.shape}  h_V: {h_V.shape}  '
+        #       f'h_E: {h_E.shape}  mask_fw_design: {mask_fw_design.shape}  h_EX_encoder: '
+        #       f'{h_EX_encoder.shape}  h_EXV_encoder: {h_EXV_encoder.shape}  chain_mask: '
+        #       f'{chain_mask.shape}')
+        amino_acids = 'ACDEFGHIKLMNPQRSTVWYX'
+        for i in range(N_res):
+            if chain_mask[0,i]>0.5:
+                print(f'design: {i:3d} {amino_acids[S_true[0,i]]}')
+            if spec_mask[0,i]>0.5:
+                print(f'spec:   {i:3d} {amino_acids[S_true[0,i]]}')
+        print('decoding_order_design:', decoding_order_design)
+        print('decoding_order_spec:', decoding_order_spec)
+
+        # we need to make a parallel h_V_stack that decodes everything non-peptide and non-designable first, then gradually decodes designable
+        # versus the normal h_V_stack that decodes everything non-designable, and then gradually decodes designable
+        h_V_stack_spec = [h_V] + [torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))]
+
+        # this will modify S_spec and h_S_spec and fill h_V_stack_spec and all_probs_spec
+        self.decode_nodes(0, num_fix, decoding_order_spec, mask, chain_mask, spec_temperature,
+                          S_true, E_idx, h_E, S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
+
+        # now go through the normal decoding process here but trying out all possibilities at designable positions
+        S_true_spec = S_true.clone()
+        h_S = torch.zeros_like(h_V, device=device)
+        S = torch.zeros((N_batch, N_res), dtype=torch.int64, device=device)
+        h_V_stack_design = [h_V] + [torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))]
+        designed_mask = torch.zeros(spec_mask.shape, dtype=spec_mask.dtype, device=device) #positions that we've already designed
+        undesigned_mask = chain_mask.clone() # will gradually go to all zeros
+        num_designed = 0
+        for t_ in range(N_res):
+            t = decoding_order_design[:,t_] #[B]
+            probs = self.decode_single_position(t, chain_mask, mask, S, E_idx, h_S, h_E, h_V_stack_design, h_EXV_encoder,
+                                                mask_fw_design, mask_bw_design, temperature)
+            chain_mask_t = torch.gather(chain_mask, 1, t[:,None]) #[B]
+
+            if (chain_mask_t>0.5).all(): #
+                # this is a designable position
+                # here we would try the different aas one at a time, and compute peptide probs
+                num_designed += 1
+                designed_mask[0,t[0]] = 1.0
+                undesigned_mask[0,t[0]] = 0.0
+                #print(f'num_designed: {num_designed}  {designed_mask.sum()} {undesigned_mask.sum()} of {num_design}')
+                # now we want to try decoding the peptide (spec) positions based on this position
+                # for a decoding order, we want: all fixed rsds, the designable rsds we've already set, and then the peptide
+                decoding_order_tmp = torch.argsort(torch.abs(randn) + 1000*designed_mask + 2000*spec_mask + 3000*undesigned_mask)
+
+                peptide_probs = []
+                for ii in range(20): # loop over the 20 amino acids
+                    # put this aa into the "true" array so it will get chosen when we decode this position...
+                    S_t = torch.tensor([[ii]], dtype=torch.int64, device=device)
+                    S_true_spec.scatter_(1, t[:,None], S_t)
+
+                    # now decode the designed and spec positions
+                    self.decode_nodes(num_fix, num_fix+num_designed+num_spec, decoding_order_tmp,
+                                      mask, undesigned_mask, spec_temperature,
+                                      S_true_spec, E_idx, h_E,
+                                      S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
+
+                    # compute total pep prob
+                    total_spec_prob = 0
+                    for pos in range(N_res):
+                        if spec_mask[0,pos]>0.5:
+                            total_spec_prob += all_probs_spec[0, pos, S_true[0,pos]]
+                    print(f'pos: {t[0]:3d} aa: {ii:2d} {amino_acids[ii]} {amino_acids[S_true[0,t[0]]]} '
+                          f'self_prob: {probs[0,ii]} pep_prob: {total_spec_prob}')
+                    peptide_probs.append(total_spec_prob)
+
+            S_t = torch.multinomial(probs, 1)
+            # we only fill in the probs at designable positions, for some reason
+            all_probs.scatter_(1, t[:,None,None].repeat(1,1,21), (chain_mask_t[:,:,None,]*probs[:,None,:]).float())
+
+            S_true_t = torch.gather(S_true, 1, t[:,None])
+            S_t = (S_t*chain_mask_t + S_true_t*(1.0-chain_mask_t)).long()
+            temp1 = self.W_s(S_t)
+            h_S.scatter_(1, t[:,None,None].repeat(1,1,N_hidden), temp1)
+            S.scatter_(1, t[:,None], S_t)
+            S_true_spec.scatter_(1, t[:,None], S_t) # the aa we actually chose
+
+        output_dict = {"S": S, "probs": all_probs, "decoding_order": decoding_order_design}
+        return output_dict
+
 
     def conditional_probs(self, X, S, mask, chain_M, residue_idx, chain_encoding_all, randn, backbone_only=False):
         """ Graph-conditioned sequence model """
@@ -1313,7 +1557,7 @@ class ProteinMPNN(nn.Module):
 
 
         chain_M = chain_M*mask #update chain_M to include missing regions
-  
+
         chain_M_np = chain_M.cpu().numpy()
         idx_to_loop = np.argwhere(chain_M_np[0,:]==1)[:,0]
         log_conditional_probs = torch.zeros([X.shape[0], chain_M.shape[1], 21], device=device).float()
@@ -1338,7 +1582,7 @@ class ProteinMPNN(nn.Module):
 
             h_EXV_encoder_fw = mask_fw * h_EXV_encoder
             for layer in self.decoder_layers:
-                # Masked positions attend to encoder information, unmasked see. 
+                # Masked positions attend to encoder information, unmasked see.
                 h_ESV = cat_neighbors_nodes(h_V, h_ES, E_idx)
                 h_ESV = mask_bw * h_ESV + h_EXV_encoder_fw
                 h_V = layer(h_V, h_ESV, mask)
@@ -1381,3 +1625,69 @@ class ProteinMPNN(nn.Module):
         log_probs = F.log_softmax(logits, dim=-1)
         return log_probs
 
+notes = '''
+
+>>> do1 = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,11]).unsqueeze(0)
+>>> pmr1 = torch.nn.functional.one_hot(do1, num_classes = 12).float()
+>>> omb1 = torch.einsum('ij, biq, bjp->bqp', (1-torch.triu(torch.ones(12,12))), pmr1, pmr1)
+
+>>> do1
+tensor([[ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11]])
+>>> pmr1
+tensor([[[1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.]]])
+>>> omb1
+tensor([[[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0.]]])
+
+
+>>> do2
+tensor([[ 2,  3,  0,  1,  6,  5,  4,  7, 11,  8,  9, 10]])
+>>> pmr2
+tensor([[[0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.]]])
+>>> omb2
+tensor([[[0., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 0., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 0., 1., 1., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 0., 0., 1., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 0., 0.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 1.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 1.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0., 1.],
+         [1., 1., 1., 1., 1., 1., 1., 1., 0., 0., 0., 0.]]])
+
+'''
