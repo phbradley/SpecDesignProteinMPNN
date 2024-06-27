@@ -21,6 +21,8 @@ def main(args):
     from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
     from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
 
+    print(args.mixed_precision)
+    
     scaler = torch.cuda.amp.GradScaler() if (torch.cuda.is_available() and args.mixed_precision) else None
     
     print(args.mixed_precision)
@@ -261,9 +263,9 @@ if __name__ == "__main__":
     argparser.add_argument("--max_protein_length", type=int, default=10000, help="maximum length of the protein complext")
     argparser.add_argument("--backbone_noise", type=float, default=0.2, help="amount of noise added to backbone during training")   
     argparser.add_argument("--rescut", type=float, default=3.5, help="PDB resolution cutoff")
-    argparser.add_argument("--debug", type=bool, default=False, help="minimal data loading for debugging")
+    argparser.add_argument("--debug", type=int, default=0, help="minimal data loading for debugging. 0 for False, 1 for True")
     argparser.add_argument("--gradient_norm", type=float, default=-1.0, help="clip gradient norm, set to negative to omit clipping")
-    argparser.add_argument("--mixed_precision", type=bool, default=True, help="train with mixed precision")
+    argparser.add_argument("--mixed_precision", type=int, default=1, help="train with mixed precision. 0 for False, 1 for True")
  
     args = argparser.parse_args()    
     main(args)   
