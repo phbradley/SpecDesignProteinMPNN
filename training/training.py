@@ -20,12 +20,8 @@ def main(args):
     from concurrent.futures import ProcessPoolExecutor    
     from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
     from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
-
-    print(args.mixed_precision)
     
     scaler = torch.cuda.amp.GradScaler() if (torch.cuda.is_available() and args.mixed_precision) else None
-    
-    print(args.mixed_precision)
     
     if args.mixed_precision and not torch.cuda.is_available():
         warnings.warn("Mixed precision enabled, but Cuda is not available. Disabling.")
