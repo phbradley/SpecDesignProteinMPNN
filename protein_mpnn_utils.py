@@ -1303,9 +1303,13 @@ class ProteinMPNN(nn.Module):
 
 
     def decode_single_position(
-            self, t, design_mask, mask, S, E_idx, h_S, h_E, h_V_stack, h_EXV_encoder, mask_fw, mask_bw, temperature,
+            self, t, design_mask, mask, mask_fw, mask_bw, temperature,
+            S, E_idx, h_S, h_E, h_EXV_encoder,
+            h_V_stack, # modified in place
     ):
-        ''' returns probs'''
+        ''' t looks like tensor([pos]) where pos is the position being decoded (t shape is [B])
+
+        returns probs, and modifies h_V_stack at the position in t'''
         N_nbrs, N_hidden = h_E.shape[-2:]
         N_batch, N_res = S.shape[:2]
 
@@ -1313,7 +1317,8 @@ class ProteinMPNN(nn.Module):
         E_idx_t = torch.gather(E_idx, 1, t[:,None,None].repeat(1,1,N_nbrs))
         h_E_t = torch.gather(h_E, 1, t[:,None,None,None].repeat(1,1,N_nbrs, N_hidden))
         h_ES_t = cat_neighbors_nodes(h_S, h_E_t, E_idx_t)
-        h_EXV_encoder_fw_t = torch.gather(mask_fw * h_EXV_encoder, 1, t[:,None,None,None].repeat(1,1,N_nbrs, 3*N_hidden))
+        h_EXV_encoder_fw_t = torch.gather(
+            mask_fw * h_EXV_encoder, 1, t[:,None,None,None].repeat(1,1,N_nbrs, 3*N_hidden))
         mask_bw_t = torch.gather(mask_bw, 1, t[:,None,None,None].repeat(1,1,N_nbrs,1))
         mask_t = torch.gather(mask, 1, t[:,None]) #[B]
         for l, layer in enumerate(self.decoder_layers):
@@ -1330,7 +1335,7 @@ class ProteinMPNN(nn.Module):
 
 
 
-    def decode_nodes(
+    def decode_positions(
             self, start, stop, decoding_order,
             mask, design_mask, temperature,
             S_true, E_idx, h_E,
@@ -1346,7 +1351,7 @@ class ProteinMPNN(nn.Module):
 
         [start,stop) refers to decoding_order indices, not actual residue numbers
         '''
-        print('decode_nodes:', start, stop, decoding_order[0,start:stop])
+        print('decode_positions:', start, stop, decoding_order[0,start:stop])
         N_nbrs, N_hidden = h_E.shape[-2:]
         N_batch, N_res = S.shape[:2]
         assert 0 <= start < stop <= N_res
@@ -1364,7 +1369,8 @@ class ProteinMPNN(nn.Module):
 
         for t_ in range(start, stop):
             t = decoding_order[:,t_] #[B]
-            probs = self.decode_single_position(t, design_mask, mask, S, E_idx, h_S, h_E, h_V_stack, h_EXV_encoder, mask_fw, mask_bw, temperature)
+            probs = self.decode_single_position(t, design_mask, mask, mask_fw, mask_bw, temperature,
+                                                S, E_idx, h_S, h_E, h_EXV_encoder, h_V_stack)
             S_t = torch.multinomial(probs, 1)
             all_probs.scatter_(1, t[:,None,None].repeat(1,1,21), probs[:,None,:].float())
 
@@ -1420,6 +1426,9 @@ class ProteinMPNN(nn.Module):
             h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend)
 
         # from now on, h_V and h_E do not change! they are the state right out of the encoder
+        h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_V), h_E, E_idx)
+        h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
+
 
         # Decoder uses masked self-attention
         chain_mask = chain_mask*chain_M_pos*mask #update chain_M to include missing regions
@@ -1447,8 +1456,6 @@ class ProteinMPNN(nn.Module):
 
         h_S_spec = torch.zeros_like(h_V, device=device)
         S_spec = torch.zeros((N_batch, N_res), dtype=torch.int64, device=device)
-        h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_V), h_E, E_idx)
-        h_EXV_encoder = cat_neighbors_nodes(h_V, h_EX_encoder, E_idx)
 
         # show some shapes
         # print(f'shapes: X: {X.shape}  S: {S.shape}  E_idx: {E_idx.shape}  E: {E.shape}  h_V: {h_V.shape}  '
@@ -1469,8 +1476,8 @@ class ProteinMPNN(nn.Module):
         h_V_stack_spec = [h_V] + [torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))]
 
         # this will modify S_spec and h_S_spec and fill h_V_stack_spec and all_probs_spec
-        self.decode_nodes(0, num_fix, decoding_order_spec, mask, chain_mask, spec_temperature,
-                          S_true, E_idx, h_E, S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
+        self.decode_positions(0, num_fix, decoding_order_spec, mask, chain_mask, spec_temperature,
+                              S_true, E_idx, h_E, S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
 
         # now go through the normal decoding process here but trying out all possibilities at designable positions
         S_true_spec = S_true.clone()
@@ -1482,8 +1489,9 @@ class ProteinMPNN(nn.Module):
         num_designed = 0
         for t_ in range(N_res):
             t = decoding_order_design[:,t_] #[B]
-            probs = self.decode_single_position(t, chain_mask, mask, S, E_idx, h_S, h_E, h_V_stack_design, h_EXV_encoder,
-                                                mask_fw_design, mask_bw_design, temperature)
+            probs = self.decode_single_position(t, chain_mask, mask, mask_fw_design, mask_bw_design, temperature,
+                                                S, E_idx, h_S, h_E, h_EXV_encoder, h_V_stack_design)
+
             chain_mask_t = torch.gather(chain_mask, 1, t[:,None]) #[B]
 
             if (chain_mask_t>0.5).all(): #
@@ -1504,12 +1512,12 @@ class ProteinMPNN(nn.Module):
                     S_true_spec.scatter_(1, t[:,None], S_t)
 
                     # now decode the designed and spec positions
-                    self.decode_nodes(num_fix, num_fix+num_designed+num_spec, decoding_order_tmp,
-                                      mask, undesigned_mask, spec_temperature,
-                                      S_true_spec, E_idx, h_E,
-                                      S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
+                    self.decode_positions(num_fix, num_fix+num_designed+num_spec, decoding_order_tmp,
+                                          mask, undesigned_mask, spec_temperature,
+                                          S_true_spec, E_idx, h_E,
+                                          S_spec, h_S_spec, h_V_stack_spec, all_probs_spec)
 
-                    # compute total pep prob
+                    # compute total pep prob; there must be a torch one-liner for this...
                     total_spec_prob = 0
                     for pos in range(N_res):
                         if spec_mask[0,pos]>0.5:
@@ -1527,7 +1535,7 @@ class ProteinMPNN(nn.Module):
             temp1 = self.W_s(S_t)
             h_S.scatter_(1, t[:,None,None].repeat(1,1,N_hidden), temp1)
             S.scatter_(1, t[:,None], S_t)
-            S_true_spec.scatter_(1, t[:,None], S_t) # the aa we actually chose
+            S_true_spec.scatter_(1, t[:,None], S_t) # put the aa we actually chose into the "true" array for spec
 
         output_dict = {"S": S, "probs": all_probs, "decoding_order": decoding_order_design}
         return output_dict
