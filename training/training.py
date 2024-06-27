@@ -23,8 +23,10 @@ def main(args):
 
     scaler = torch.cuda.amp.GradScaler() if (torch.cuda.is_available() and args.mixed_precision) else None
     
-    if (args.mixed_precision and not torch.cuda.is_available()):
-        warnings.warning("Warning: mixed precision enabled but Cuda is not available. Disabling.")
+    print(args.mixed_precision)
+    
+    if args.mixed_precision and not torch.cuda.is_available():
+        warnings.warn("Mixed precision enabled, but Cuda is not available. Disabling.")
      
     device = torch.device("cuda:0" if (torch.cuda.is_available()) else "cpu")
 
@@ -250,14 +252,13 @@ if __name__ == "__main__":
     argparser.add_argument("--num_examples_per_epoch", type=int, default=1000000, help="number of training example to load for one epoch")
     argparser.add_argument("--batch_size", type=int, default=10000, help="number of tokens for one batch")
     
-    argparser.add_argument("--max_protein_length", type=int, default=10000, help="maximum length of the protein complext")
-    
     argparser.add_argument("--hidden_dim", type=int, default=128, help="hidden model dimension")
     argparser.add_argument("--num_encoder_layers", type=int, default=3, help="number of encoder layers") 
     argparser.add_argument("--num_decoder_layers", type=int, default=3, help="number of decoder layers")
     argparser.add_argument("--num_neighbors", type=int, default=48, help="number of neighbors for the sparse graph")   
     argparser.add_argument("--dropout", type=float, default=0.1, help="dropout level; 0.0 means no dropout")
     
+    argparser.add_argument("--max_protein_length", type=int, default=10000, help="maximum length of the protein complext")
     argparser.add_argument("--backbone_noise", type=float, default=0.2, help="amount of noise added to backbone during training")   
     argparser.add_argument("--rescut", type=float, default=3.5, help="PDB resolution cutoff")
     argparser.add_argument("--debug", type=bool, default=False, help="minimal data loading for debugging")
