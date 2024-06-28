@@ -1,5 +1,6 @@
 import argparse
 import os.path
+from timeit import default_timer as timer
 
 def main(args):
 
@@ -137,6 +138,18 @@ def main(args):
             print('tied_positions_jsonl is NOT loaded')
         tied_positions_dict = None
 
+    if os.path.isfile(args.spec_positions_jsonl):
+        with open(args.spec_positions_jsonl, 'r') as json_file:
+            json_list = list(json_file)
+        for json_str in json_list:
+            spec_positions_dict = json.loads(json_str)
+        print('spec_positions_dict:', spec_positions_dict)
+    else:
+        if print_all:
+            print(40*'-')
+            print('spec_positions_jsonl is NOT loaded')
+        spec_positions_dict = None
+
 
     if os.path.isfile(args.bias_by_res_jsonl):
         with open(args.bias_by_res_jsonl, 'r') as json_file:
@@ -233,7 +246,7 @@ def main(args):
             all_log_probs_list = []
             S_sample_list = []
             batch_clones = [copy.deepcopy(protein) for i in range(BATCH_COPIES)]
-            X, S, mask, lengths, chain_M, chain_encoding_all, chain_list_list, visible_list_list, masked_list_list, masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, tied_pos_list_of_lists_list, pssm_coef, pssm_bias, pssm_log_odds_all, bias_by_res_all, tied_beta = tied_featurize(batch_clones, device, chain_id_dict, fixed_positions_dict, omit_AA_dict, tied_positions_dict, pssm_dict, bias_by_res_dict, ca_only=args.ca_only)
+            X, S, mask, lengths, chain_M, chain_encoding_all, chain_list_list, visible_list_list, masked_list_list, masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, tied_pos_list_of_lists_list, pssm_coef, pssm_bias, pssm_log_odds_all, bias_by_res_all, tied_beta, spec_mask = tied_featurize(batch_clones, device, chain_id_dict, fixed_positions_dict, omit_AA_dict, tied_positions_dict, pssm_dict, bias_by_res_dict, ca_only=args.ca_only, spec_position_dict=spec_positions_dict)
             pssm_log_odds_mask = (pssm_log_odds_all > args.pssm_threshold).float() #1.0 for true, 0.0 for false
             name_ = batch_clones[0]['name']
             if args.score_only:
@@ -306,13 +319,6 @@ def main(args):
                 mask_out = (chain_M*chain_M_pos*mask)[0,].cpu().numpy()
                 np.savez(unconditional_probs_only_file, log_p=concat_log_p, S=S[0,].cpu().numpy(), mask=mask[0,].cpu().numpy(), design_mask=mask_out)
             else:
-                ## temporary hack:
-                spec_mask = chain_M.clone() # tmp hack
-                for i in range(25):
-                    if i<9:
-                        chain_M[0,i] = 0.
-                    else:
-                        chain_M[0,i] = 1.
                 randn_1 = torch.randn(chain_M.shape, device=X.device)
                 log_probs = model(X, S, mask, chain_M*chain_M_pos, residue_idx, chain_encoding_all, randn_1)
                 mask_for_loss = mask*chain_M*chain_M_pos
@@ -332,7 +338,12 @@ def main(args):
                         for j in range(NUM_BATCHES):
                             randn_2 = torch.randn(chain_M.shape, device=X.device)
                             if tied_positions_dict == None:
-                                sample_dict = model.spec_sample(X, randn_2, S, chain_M, chain_encoding_all, residue_idx, spec_mask, mask=mask, temperature=temp, omit_AAs_np=omit_AAs_np, bias_AAs_np=bias_AAs_np, chain_M_pos=chain_M_pos, omit_AA_mask=omit_AA_mask, pssm_coef=pssm_coef, pssm_bias=pssm_bias, pssm_multi=args.pssm_multi, pssm_log_odds_flag=bool(args.pssm_log_odds_flag), pssm_log_odds_mask=pssm_log_odds_mask, pssm_bias_flag=bool(args.pssm_bias_flag), bias_by_res=bias_by_res_all)
+                                if spec_positions_dict is None:
+                                    sample_dict = model.sample(X, randn_2, S, chain_M, chain_encoding_all, residue_idx, mask=mask, temperature=temp, omit_AAs_np=omit_AAs_np, bias_AAs_np=bias_AAs_np, chain_M_pos=chain_M_pos, omit_AA_mask=omit_AA_mask, pssm_coef=pssm_coef, pssm_bias=pssm_bias, pssm_multi=args.pssm_multi, pssm_log_odds_flag=bool(args.pssm_log_odds_flag), pssm_log_odds_mask=pssm_log_odds_mask, pssm_bias_flag=bool(args.pssm_bias_flag), bias_by_res=bias_by_res_all)
+                                else:
+                                    start = timer()
+                                    sample_dict = model.spec_sample(X, randn_2, S, chain_M, chain_encoding_all, residue_idx, spec_mask, mask=mask, temperature=temp, omit_AAs_np=omit_AAs_np, bias_AAs_np=bias_AAs_np, chain_M_pos=chain_M_pos, omit_AA_mask=omit_AA_mask, pssm_coef=pssm_coef, pssm_bias=pssm_bias, pssm_multi=args.pssm_multi, pssm_log_odds_flag=bool(args.pssm_log_odds_flag), pssm_log_odds_mask=pssm_log_odds_mask, pssm_bias_flag=bool(args.pssm_bias_flag), bias_by_res=bias_by_res_all, spec_weight=args.spec_weight, verbose=print_all)
+                                    print('spec_sample_time:', timer()-start, name_, j)
                                 S_sample = sample_dict["S"]
                             else:
                                 sample_dict = model.tied_sample(X, randn_2, S, chain_M, chain_encoding_all, residue_idx, mask=mask, temperature=temp, omit_AAs_np=omit_AAs_np, bias_AAs_np=bias_AAs_np, chain_M_pos=chain_M_pos, omit_AA_mask=omit_AA_mask, pssm_coef=pssm_coef, pssm_bias=pssm_bias, pssm_multi=args.pssm_multi, pssm_log_odds_flag=bool(args.pssm_log_odds_flag), pssm_log_odds_mask=pssm_log_odds_mask, pssm_bias_flag=bool(args.pssm_bias_flag), tied_pos=tied_pos_list_of_lists_list[0], tied_beta=tied_beta, bias_by_res=bias_by_res_all)
@@ -472,5 +483,7 @@ if __name__ == "__main__":
 
     argparser.add_argument("--tied_positions_jsonl", type=str, default='', help="Path to a dictionary with tied positions")
 
+    argparser.add_argument("--spec_positions_jsonl", type=str, default='', help="Path to a dictionary with specificity positions.")
+    argparser.add_argument("--spec_weight", type=float, default=0.0, help="Weight to apply to the specificity term")
     args = argparser.parse_args()
     main(args)
