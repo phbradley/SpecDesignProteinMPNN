@@ -188,7 +188,7 @@ def parse_PDB(path_to_pdb, input_chain_list=None, ca_only=False):
 
 
 
-def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_dict=None, tied_positions_dict=None, pssm_dict=None, bias_by_res_dict=None, ca_only=False):
+def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_dict=None, tied_positions_dict=None, pssm_dict=None, bias_by_res_dict=None, ca_only=False, spec_position_dict=None):
     """ Pack and pad batch into torch tensors """
     alphabet = 'ACDEFGHIKLMNPQRSTVWYX'
     B = len(batch)
@@ -204,6 +204,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
     pssm_bias_all = np.zeros([B, L_max, 21], dtype=np.float32) #1.0 for the bits that need to be predicted
     pssm_log_odds_all = 10000.0*np.ones([B, L_max, 21], dtype=np.float32) #1.0 for the bits that need to be predicted
     chain_M_pos = np.zeros([B, L_max], dtype=np.int32) #1.0 for the bits that need to be predicted
+    spec_pos_full = np.zeros([B, L_max], dtype=np.int32) #1.0 for specificity positions
     bias_by_res_all = np.zeros([B, L_max, 21], dtype=np.float32)
     chain_encoding_all = np.zeros([B, L_max], dtype=np.int32) #1.0 for the bits that need to be predicted
     S = np.zeros([B, L_max], dtype=np.int32)
@@ -237,6 +238,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
         masked_list = []
         masked_chain_length_list = []
         fixed_position_mask_list = []
+        spec_position_mask_list = []
         omit_AA_mask_list = []
         pssm_coef_list = []
         pssm_bias_list = []
@@ -270,6 +272,12 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
                 c+=1
                 fixed_position_mask = np.ones(chain_length)
                 fixed_position_mask_list.append(fixed_position_mask)
+                spec_position_mask = np.zeros(chain_length)
+                if spec_position_dict!=None:
+                    spec_pos_list = spec_position_dict[b['name']][letter]
+                    if spec_pos_list:
+                        spec_position_mask[np.array(spec_pos_list)-1] = 1.0
+                spec_position_mask_list.append(spec_position_mask)
                 omit_AA_mask_temp = np.zeros([chain_length, len(alphabet)], np.int32)
                 omit_AA_mask_list.append(omit_AA_mask_temp)
                 pssm_coef = np.zeros(chain_length)
@@ -309,6 +317,12 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
                     if fixed_pos_list:
                         fixed_position_mask[np.array(fixed_pos_list)-1] = 0.0
                 fixed_position_mask_list.append(fixed_position_mask)
+                spec_position_mask = np.zeros(chain_length)
+                if spec_position_dict!=None:
+                    spec_pos_list = spec_position_dict[b['name']][letter]
+                    if spec_pos_list:
+                        spec_position_mask[np.array(spec_pos_list)-1] = 1.0
+                spec_position_mask_list.append(spec_position_mask)
                 omit_AA_mask_temp = np.zeros([chain_length, len(alphabet)], np.int32)
                 if omit_AA_dict!=None:
                     for item in omit_AA_dict[b['name']][letter]:
@@ -362,6 +376,7 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
         m = np.concatenate(chain_mask_list,0) #[L,], 1.0 for places that need to be predicted
         chain_encoding = np.concatenate(chain_encoding_list,0)
         m_pos = np.concatenate(fixed_position_mask_list,0) #[L,], 1.0 for places that need to be predicted
+        spec_pos = np.concatenate(spec_position_mask_list,0) #[L,], 1.0 for places that we want to optimize specificity for
 
         pssm_coef_ = np.concatenate(pssm_coef_list,0) #[L,], 1.0 for places that need to be predicted
         pssm_bias_ = np.concatenate(pssm_bias_list,0) #[L,], 1.0 for places that need to be predicted
@@ -375,9 +390,11 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
 
         m_pad = np.pad(m, [[0,L_max-l]], 'constant', constant_values=(0.0, ))
         m_pos_pad = np.pad(m_pos, [[0,L_max-l]], 'constant', constant_values=(0.0, ))
+        spec_pos_pad = np.pad(spec_pos, [[0,L_max-l]], 'constant', constant_values=(0.0, ))
         omit_AA_mask_pad = np.pad(np.concatenate(omit_AA_mask_list,0), [[0,L_max-l]], 'constant', constant_values=(0.0, ))
         chain_M[i,:] = m_pad
         chain_M_pos[i,:] = m_pos_pad
+        spec_pos_full[i,:] = spec_pos_pad
         omit_AA_mask[i,] = omit_AA_mask_pad
 
         chain_encoding_pad = np.pad(chain_encoding, [[0,L_max-l]], 'constant', constant_values=(0.0, ))
@@ -427,13 +444,14 @@ def tied_featurize(batch, device, chain_dict, fixed_position_dict=None, omit_AA_
     mask = torch.from_numpy(mask).to(dtype=torch.float32, device=device)
     chain_M = torch.from_numpy(chain_M).to(dtype=torch.float32, device=device)
     chain_M_pos = torch.from_numpy(chain_M_pos).to(dtype=torch.float32, device=device)
+    spec_pos_full = torch.from_numpy(spec_pos_full).to(dtype=torch.float32, device=device)
     omit_AA_mask = torch.from_numpy(omit_AA_mask).to(dtype=torch.float32, device=device)
     chain_encoding_all = torch.from_numpy(chain_encoding_all).to(dtype=torch.long, device=device)
     if ca_only:
         X_out = X[:,:,0]
     else:
         X_out = X
-    return X_out, S, mask, lengths, chain_M, chain_encoding_all, letter_list_list, visible_list_list, masked_list_list, masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, tied_pos_list_of_lists_list, pssm_coef_all, pssm_bias_all, pssm_log_odds_all, bias_by_res_all, tied_beta
+    return X_out, S, mask, lengths, chain_M, chain_encoding_all, letter_list_list, visible_list_list, masked_list_list, masked_chain_length_list_list, chain_M_pos, omit_AA_mask, residue_idx, dihedral_mask, tied_pos_list_of_lists_list, pssm_coef_all, pssm_bias_all, pssm_log_odds_all, bias_by_res_all, tied_beta, spec_pos_full
 
 
 
@@ -1351,7 +1369,7 @@ class ProteinMPNN(nn.Module):
 
         [start,stop) refers to decoding_order indices, not actual residue numbers
         '''
-        print('decode_positions:', start, stop, decoding_order[0,start:stop])
+        #print('decode_positions:', start, stop, decoding_order[0,start:stop])
         N_nbrs, N_hidden = h_E.shape[-2:]
         N_batch, N_res = S.shape[:2]
         assert 0 <= start < stop <= N_res
@@ -1385,7 +1403,7 @@ class ProteinMPNN(nn.Module):
 
 
 
-    def spec_sample(self, X, randn, S_true, chain_mask, chain_encoding_all, residue_idx, spec_mask, mask=None, temperature=1.0, spec_temperature=1.0, omit_AAs_np=None, bias_AAs_np=None, chain_M_pos=None, omit_AA_mask=None, pssm_coef=None, pssm_bias=None, pssm_multi=None, pssm_log_odds_flag=None, pssm_log_odds_mask=None, pssm_bias_flag=None, bias_by_res=None):
+    def spec_sample(self, X, randn, S_true, chain_mask, chain_encoding_all, residue_idx, spec_mask, mask=None, temperature=1.0, spec_temperature=1.0, omit_AAs_np=None, bias_AAs_np=None, chain_M_pos=None, omit_AA_mask=None, pssm_coef=None, pssm_bias=None, pssm_multi=None, pssm_log_odds_flag=None, pssm_log_odds_mask=None, pssm_bias_flag=None, bias_by_res=None, spec_weight=0.0, max_alt_aa=5, verbose=False):
         '''
         The idea here is that as we sample sequence at the designable positions,
         we recompute the peptide probabilities conditioned on the various possible
@@ -1436,7 +1454,8 @@ class ProteinMPNN(nn.Module):
         num_spec = int(np.round(spec_mask[0].sum().cpu()))
         num_design = int(np.round(chain_mask[0].sum().cpu()))
         num_fix = N_res - num_design - num_spec
-        print(f'N_res: {N_res} num_spec: {num_spec} num_design: {num_design} num_fix: {num_fix}')
+        if verbose:
+            print(f'N_res: {N_res} num_spec: {num_spec} num_design: {num_design} num_fix: {num_fix}')
 
 
         # designable positions at the end; spec pos and fix pos mixed in at the beginning
@@ -1463,13 +1482,14 @@ class ProteinMPNN(nn.Module):
         #       f'{h_EX_encoder.shape}  h_EXV_encoder: {h_EXV_encoder.shape}  chain_mask: '
         #       f'{chain_mask.shape}')
         amino_acids = 'ACDEFGHIKLMNPQRSTVWYX'
-        for i in range(N_res):
-            if chain_mask[0,i]>0.5:
-                print(f'design: {i:3d} {amino_acids[S_true[0,i]]}')
-            if spec_mask[0,i]>0.5:
-                print(f'spec:   {i:3d} {amino_acids[S_true[0,i]]}')
-        print('decoding_order_design:', decoding_order_design)
-        print('decoding_order_spec:', decoding_order_spec)
+        if verbose:
+            for i in range(N_res):
+                if chain_mask[0,i]>0.5:
+                    print(f'design: {i:3d} {amino_acids[S_true[0,i]]}')
+                if spec_mask[0,i]>0.5:
+                    print(f'spec:   {i:3d} {amino_acids[S_true[0,i]]}')
+        #print('decoding_order_design:', decoding_order_design)
+        #print('decoding_order_spec:', decoding_order_spec)
 
         # we need to make a parallel h_V_stack that decodes everything non-peptide and non-designable first, then gradually decodes designable
         # versus the normal h_V_stack that decodes everything non-designable, and then gradually decodes designable
@@ -1505,8 +1525,22 @@ class ProteinMPNN(nn.Module):
                 # for a decoding order, we want: all fixed rsds, the designable rsds we've already set, and then the peptide
                 decoding_order_tmp = torch.argsort(torch.abs(randn) + 1000*designed_mask + 2000*spec_mask + 3000*undesigned_mask)
 
-                peptide_probs = []
-                for ii in range(20): # loop over the 20 amino acids
+                peptide_probs = torch.zeros_like(probs, device=device)
+                aa_order = torch.argsort(probs, descending=True)
+                best_prob = probs[0,aa_order[0,0]]
+                #print('best_prob:', best_prob, 'worst_prob:', probs[0,aa_order[0,-1]])
+
+                MAX_LIKELY_PEPPROB_DELTA = 0.7
+                for ii_ in range(max_alt_aa+1): # loop over the 20 amino acids
+                    ii = aa_order[0,ii_]
+                    ii_prob = probs[0,ii]
+                    gap = torch.log(best_prob/ii_prob)
+                    #print(ii, amino_acids[ii], 'gap:', gap)
+                    if gap > MAX_LIKELY_PEPPROB_DELTA * spec_weight:
+                        #print('gap too big:', gap, MAX_LIKELY_PEPPROB_DELTA * spec_weight)
+                        break
+
+
                     # put this aa into the "true" array so it will get chosen when we decode this position...
                     S_t = torch.tensor([[ii]], dtype=torch.int64, device=device)
                     S_true_spec.scatter_(1, t[:,None], S_t)
@@ -1522,9 +1556,21 @@ class ProteinMPNN(nn.Module):
                     for pos in range(N_res):
                         if spec_mask[0,pos]>0.5:
                             total_spec_prob += all_probs_spec[0, pos, S_true[0,pos]]
-                    print(f'pos: {t[0]:3d} aa: {ii:2d} {amino_acids[ii]} {amino_acids[S_true[0,t[0]]]} '
-                          f'self_prob: {probs[0,ii]} pep_prob: {total_spec_prob}')
-                    peptide_probs.append(total_spec_prob)
+                    #print(f'pos: {t[0]:3d} aa: {ii:2d} {amino_acids[ii]} {amino_acids[S_true[0,t[0]]]} '
+                    #      f'self_prob: {probs[0,ii]} pep_prob: {total_spec_prob}')
+                    peptide_probs[0,ii] = total_spec_prob
+
+                # now adjust probs
+                #print('old_logits:', torch.log(probs))
+                fake_logits = torch.log(probs) + spec_weight * peptide_probs
+                #print('new_logits:', fake_logits)
+                old_probs = probs.clone()
+                probs = F.softmax(fake_logits, dim=-1)
+                #print('old_probs:', old_probs)
+                #print('new_probs:', probs)
+                new_aa_order = torch.argsort(probs, descending=True)
+                if new_aa_order[0,0] != aa_order[0,0]:
+                    print('new best aa:', t[0], amino_acids[new_aa_order[0,0]], 'old:', amino_acids[aa_order[0,0]])
 
             S_t = torch.multinomial(probs, 1)
             # we only fill in the probs at designable positions, for some reason
