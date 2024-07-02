@@ -27,9 +27,6 @@ def featurize(batch, device):
     mask_self = np.ones([B, L_max, L_max], dtype=np.int32) #for interface loss calculation - 0.0 for self interaction, 1.0 for other
     chain_encoding_all = np.zeros([B, L_max], dtype=np.int32) #integer encoding for chains 0, 0, 0,...0, 1, 1,..., 1, 2, 2, 2...
     S = np.zeros([B, L_max], dtype=np.int32) #sequence AAs integers
-    init_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G','H', 'I', 'J','K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T','U', 'V','W','X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g','h', 'i', 'j','k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't','u', 'v','w','x', 'y', 'z']
-    extra_alphabet = [str(item) for item in list(np.arange(300))]
-    chain_letters = init_alphabet + extra_alphabet
     for i, b in enumerate(batch):
         masked_chains = b['masked_list']
         visible_chains = b['visible_list']
@@ -51,8 +48,6 @@ def featurize(batch, device):
                         visible_chains.remove(kv)
         all_chains = masked_chains + visible_chains
         random.shuffle(all_chains) #randomly shuffle chain order
-        num_chains = b['num_of_chains']
-        mask_dict = {}
         x_chain_list = []
         chain_mask_list = []
         chain_seq_list = []
@@ -109,7 +104,19 @@ def featurize(batch, device):
         # Convert to labels
         indices = np.asarray([alphabet.index(a) for a in all_sequence], dtype=np.int32)
         S[i, :l] = indices
-
+        
+        # if residue-wise design mask provided, apply it to chain_M now
+        if 'visible_residues' in b:
+            # masked residues provides residues that are fixed for each chain, 
+            # we take those and set corresponding indices of chain_M to 0
+            chain_M[i,:] = np.ones(L_max, dtype=np.int32)
+            idx_offset = -1 # indices are 1-indexed so adjusts to 0-index
+            for j in range(b['num_of_chains']):
+                chid = all_chains[j]
+                idx = np.array(b['visible_residues'][chid]) + idx_offset
+                chain_M[i][idx] = 0 # 1 for residues to be designed, 0 if not
+                idx_offset += len(b['seq_chain_'+chid]) # convert indices from chain position to assembly position
+            
     isnan = np.isnan(X)
     mask = np.isfinite(np.sum(X,(2,3))).astype(np.float32)
     X[isnan] = 0.

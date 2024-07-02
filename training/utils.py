@@ -6,6 +6,7 @@ import numpy as np
 import time
 import random
 import os
+import json
 
 class StructureDataset():
     def __init__(self, pdb_dict_list, verbose=True, truncate=None, max_length=100,
@@ -22,8 +23,6 @@ class StructureDataset():
         start = time.time()
         for i, entry in enumerate(pdb_dict_list):
             seq = entry['seq']
-            name = entry['name']
-
             bad_chars = set([s for s in seq]).difference(alphabet_set)
             if len(bad_chars) == 0:
                 if len(entry['seq']) <= max_length:
@@ -58,18 +57,16 @@ class StructureLoader():
         self.lengths = [len(dataset[i]['seq']) for i in range(self.size)]
         self.batch_size = batch_size
         sorted_ix = np.argsort(self.lengths)
-
+        
         # Cluster into batches of similar sizes
         clusters, batch = [], []
-        batch_max = 0
         for ix in sorted_ix:
             size = self.lengths[ix]
-            if size * (len(batch) + 1) <= self.batch_size:
-                batch.append(ix)
-                batch_max = size
-            else:
+            batch.append(ix)
+            if size * (len(batch) + 1) > self.batch_size:
                 clusters.append(batch)
-                batch, batch_max = [], 0
+                batch = []
+                
         if len(batch) > 0:
             clusters.append(batch)
         self.clusters = clusters
@@ -129,29 +126,19 @@ def get_std_opt(parameters, d_model, step):
 
 
 
-
 def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000):
     init_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G','H', 'I', 'J','K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T','U', 'V','W','X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g','h', 'i', 'j','k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't','u', 'v','w','x', 'y', 'z']
     extra_alphabet = [str(item) for item in list(np.arange(300))]
     chain_alphabet = init_alphabet + extra_alphabet
-    c = 0
     c1 = 0
     pdb_dict_list = []
-    t0 = time.time()
     for _ in range(repeat):
         for step,t in enumerate(data_loader):
             t = {k:v[0] for k,v in t.items()}
             c1 += 1
             if 'label' in list(t):
                 my_dict = {}
-                s = 0
                 concat_seq = ''
-                concat_N = []
-                concat_CA = []
-                concat_C = []
-                concat_O = []
-                concat_mask = []
-                coords_dict = {}
                 mask_list = []
                 visible_list = []
                 if len(list(np.unique(t['idx']))) < 352:
@@ -204,6 +191,14 @@ def get_pdbs(data_loader, repeat=1, max_length=10000, num_units=1000000):
                         pdb_dict_list.append(my_dict)
                     if len(pdb_dict_list) >= num_units:
                         break
+    return pdb_dict_list
+
+
+
+def get_pdbs_custom_mask(data_loader, repeat=1, max_length=10000, num_units=1000000):
+    pdb_dict_list = []
+    for step,t in enumerate(data_loader):
+        pdb_dict_list.append(t)
     return pdb_dict_list
 
 
@@ -294,10 +289,8 @@ def loader_pdb(item,params):
                 if seqid_j>params['HOMO']])
     # stack all chains in the assembly together
     seq,xyz,idx,masked = "",[],[],[]
-    seq_list = []
     for counter,(k,v) in enumerate(asmb.items()):
         seq += chains[k[0]]['seq']
-        seq_list.append(chains[k[0]]['seq'])
         xyz.append(v)
         idx.append(torch.full((v.shape[0],),counter))
         if k[0] in homo:
@@ -309,6 +302,30 @@ def loader_pdb(item,params):
             'masked' : torch.Tensor(masked).int(),
             'label'  : item[0]}
 
+
+
+def loader_pdb_custom_mask(item,params):
+    pdbid = item[0]
+    
+    with open(params['DIR']+"/seq_xyz.jsonl") as file:
+        seq_dict = json.loads(file.readline())
+        while seq_dict['name'] != pdbid:
+            seq_dict = json.loads(file.readline())
+    
+    with open(params['DIR']+"/design_residues.jsonl") as file:
+        des_dict = json.loads(file.readline())[pdbid]
+        
+    with open(params['DIR']+"/design_chains.jsonl") as file:
+        mask_chain_dict = json.loads(file.readline())[pdbid]
+
+    masked_list = mask_chain_dict[0]
+    visible_list = mask_chain_dict[1]
+    
+    seq_dict['masked_list'] = masked_list
+    seq_dict['visible_list'] = visible_list
+    seq_dict['visible_residues'] = des_dict
+    
+    return seq_dict
 
 
 
@@ -354,3 +371,23 @@ def build_training_clusters(params, debug):
     if debug:
         valid=train       
     return train, valid, test
+
+
+
+def train_valid_split_custom(params, debug, valid_size=.15):
+    path_to_des_chains = params['DIR']
+    with open(path_to_des_chains+"/design_chains.jsonl") as file:
+        pdbs = np.array(list(json.loads(file.readline()).keys()))
+    
+    idx = list(range(len(pdbs)))
+    np.random.shuffle(idx)
+    
+    num_valid = (int)(len(idx)*valid_size)
+    train_list = pdbs[idx[:-num_valid]]
+    valid_list = pdbs[idx[-num_valid:]]
+    
+    # not using clustering, but formatting data to work with PDB_dataset
+    train = {p: [[p]] for p in train_list}
+    valid = {p: [[p]] for p in valid_list}
+    
+    return train, valid
