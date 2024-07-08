@@ -18,4 +18,3 @@ epoch: 17, step: 408, time: 117.7, train: 2.331, valid: 4.093, train_acc: 0.757,
 epoch: 18, step: 432, time: 118.2, train: 2.271, valid: 3.901, train_acc: 0.761, valid_acc: 0.620
 epoch: 19, step: 456, time: 119.9, train: 2.119, valid: 3.824, train_acc: 0.793, valid_acc: 0.636
 epoch: 20, step: 480, time: 120.7, train: 1.976, valid: 4.004, train_acc: 0.808, valid_acc: 0.623
-epoch: 1, step: 24, time: 111.4, train: 6.961, valid: 6.338, train_acc: 0.376, valid_acc: 0.406
