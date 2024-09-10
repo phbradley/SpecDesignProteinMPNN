@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 
 # parse log.txt to plot train/validation accuracy vs epochs #
 
-path = 'output/log.txt'
+train_ver = "version_2"
+path = f'output/{train_ver}/log.txt'
 
 epochs = []
 train_acc = []
